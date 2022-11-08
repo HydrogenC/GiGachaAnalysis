@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.3.32901.215
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GiGachaAnalysis", "GiGachaAnalysis\GiGachaAnalysis.csproj", "{6B4CA03C-90A3-4C4A-913D-C27463E99CCF}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{6B4CA03C-90A3-4C4A-913D-C27463E99CCF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6B4CA03C-90A3-4C4A-913D-C27463E99CCF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6B4CA03C-90A3-4C4A-913D-C27463E99CCF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6B4CA03C-90A3-4C4A-913D-C27463E99CCF}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {2530A907-C135-4AA6-AB6F-AF8D652B6834}
+	EndGlobalSection
+EndGlobal
