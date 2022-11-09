@@ -2,7 +2,6 @@
 using System.Globalization;
 using System.Reflection.Emit;
 using ScottPlot;
-using static ScottPlot.Plottable.PopulationPlot;
 
 namespace GiGachaAnalysis;
 
@@ -25,14 +24,49 @@ record struct Pull(bool IsSpecial, bool WonFifty,
 /// <param name="WinChance">小保底不歪的概率</param>
 /// <param name="SpecialCount">限定五星总数</param>
 /// <param name="Count">五星总数</param>
+/// <param name="Varience">方差</param>
 record struct PullStats(double PityAvg, double PityAvgSpecial,
-    double WinChance, int SpecialCount, int Count);
+    double WinChance, int SpecialCount, int Count, double Varience);
+
+/// <summary>
+/// 存储每个用户的抽卡信息在数组中的位置
+/// </summary>
+/// <param name="StartIndex">起始下标</param>
+/// <param name="EndIndex">终止下标（不包含）</param>
+record class UserData
+{
+    public int StartIndex { get; set; }
+    public int EndIndex { get; set; }
+}
 
 internal class Program
 {
     static readonly string[] nonSpecial = new string[]
     {
         "刻晴", "迪卢克", "七七", "莫娜", "琴", "提纳里"
+    };
+
+    static readonly DateTime[] excludedDates = new DateTime[]
+    {
+        /*
+        new DateTime(2021, 7, 21),
+        new DateTime(2021, 8, 10),
+        new DateTime(2021, 9, 1),
+        new DateTime(2021, 9, 21),
+        new DateTime(2021, 10, 13),
+        new DateTime(2021, 11, 2),
+        new DateTime(2021, 11, 24),
+        new DateTime(2021, 12, 14),
+        new DateTime(2022, 1, 5),
+        new DateTime(2022, 1, 25),
+        new DateTime(2022, 2, 16),
+        new DateTime(2022, 3, 8),
+        new DateTime(2022, 3, 30),
+        new DateTime(2022, 4, 19),
+        new DateTime(2022, 5, 31),
+        new DateTime(2022, 6, 21),
+        new DateTime(2022, 7, 13)
+        */
     };
 
     const int DAY_SLICES = 48;
@@ -71,10 +105,17 @@ internal class Program
         timeAvgPlot.SaveFig("D:\\TimePlot.png");
     }
 
-    static void CreateDatePlot(PullStats[] dateStats, DateTime[] dates)
+    static void CreateDatePlot(PullStats[] dateStats, IList<DateTime> dates)
     {
         var dateTotalPlot = new Plot(1000, 600);
-        var dataRange = Enumerable.Range(0, dates.Length);
+        var dataRange = Enumerable.Range(0, dates.Count);
+
+        var avgData = dateTotalPlot.AddBar(
+           dataRange.Select((x) => dateStats[x].PityAvgSpecial).ToArray(),
+           dataRange.Select((x) => dates[x].ToOADate()).ToArray()
+           );
+        avgData.YAxisIndex = 1;
+        avgData.BarWidth = 0.8;
 
         var countData = dateTotalPlot.AddScatter(
             dataRange.Select((x) => dates[x].ToOADate()).ToArray(),
@@ -92,19 +133,51 @@ internal class Program
             }
         }
 
-        dateTotalPlot.XAxis.ManualTickPositions(
-            peaks.Select((x) => dates[x].ToOADate()).ToArray(),
-            peaks.Select((x) => dates[x].ToString("d")).ToArray()
-            );
-
         dateTotalPlot.Title("Genshin Pulls Analysis");
         dateTotalPlot.XAxis.TickLabelStyle(rotation: 45);
         dateTotalPlot.XAxis.Label("Time");
         dateTotalPlot.XAxis.DateTimeFormat(true);
         dateTotalPlot.YAxis.Label("Total Special");
         dateTotalPlot.YAxis.Color(countData.Color);
+        dateTotalPlot.YAxis2.Ticks(true);
+        dateTotalPlot.SetAxisLimits(yMin: 60, yMax: 120, yAxisIndex: 1);
+        dateTotalPlot.YAxis2.Label("Avg Pulls");
+        dateTotalPlot.YAxis2.Color(avgData.Color);
 
-        dateTotalPlot.SaveFig("D:\\DatePlot.png");
+        DateTime startDay = dates.First(), lastDay = dates.Last();
+        int plotIndex = 0, stepLength = 300;
+
+        while (startDay < lastDay)
+        {
+            DateTime endDay = startDay.AddDays(stepLength);
+            dateTotalPlot.SetAxisLimits(xMin: startDay.ToOADate(), xMax: endDay.ToOADate(), xAxisIndex: 0);
+            dateTotalPlot.SaveFig($"D:\\DatePlot{plotIndex}.png");
+            startDay = endDay;
+            plotIndex++;
+        }
+    }
+
+    static void CreateUserPlot(PullStats[] userStats)
+    {
+        var userDistPlot = new Plot(1000, 600);
+        var dataRange = Enumerable.Range(0, userStats.Length);
+
+        var chanceData = userDistPlot.AddScatterPoints(
+            dataRange.Select((x) => userStats[x].Count * userStats[x].PityAvg).ToArray(),
+            dataRange.Select((x) => userStats[x].PityAvgSpecial).ToArray(),
+            markerShape: MarkerShape.openCircle
+            );
+        chanceData.XAxisIndex = 0;
+        chanceData.YAxisIndex = 0;
+
+        userDistPlot.Title("Genshin Pulls Analysis");
+        userDistPlot.XAxis.Label("User Total Pulls");
+        userDistPlot.YAxis.Label("Avg Pulls");
+        userDistPlot.YAxis.Color(chanceData.Color);
+        userDistPlot.SetAxisLimits(yMin: 0, yMax: 180, yAxisIndex: 0);
+        userDistPlot.SetAxisLimits(xMin: 0, xMax: 1000, xAxisIndex: 0);
+
+        userDistPlot.SaveFig("D:\\UserPlot.png");
     }
 
     static void AddToAvg(ref PullStats stats, Pull pull)
@@ -119,10 +192,12 @@ internal class Program
             stats.SpecialCount++;
         }
     }
+
     static void Main(string[] args)
     {
         CultureInfo provider = CultureInfo.InvariantCulture;
         List<Pull> pulls = new();
+        List<UserData> users = new();
 
         // 存放 csv 数据的文件夹
         string dataDir = "D:\\Code\\player_data";
@@ -132,8 +207,13 @@ internal class Program
         {
             Console.WriteLine($"Reading file {Path.GetFileName(i)}");
 
+            users.Add(new UserData
+            {
+                StartIndex = pulls.Count
+            });
             var lines = File.ReadLines(i);
             var pities = 0;
+            var totalPulls = 0;
             var winFiftyFlag = true;
             // 第一行为表头，跳过第一行
             foreach (var line in lines.Skip(1))
@@ -166,25 +246,37 @@ internal class Program
                     ));
 
                 winFiftyFlag = isSpecial;
+                totalPulls += pities;
                 pities = 0;
             }
+
+            users[^1].EndIndex = pulls.Count;
+            // Console.WriteLine($"Sample index {users[^1].StartIndex} to {users[^1].EndIndex}");
         }
 
+        #region Time Analysis
         var timeStats = new PullStats[DAY_SLICES];
         for (int i = 0; i < DAY_SLICES; i++)
         {
-            timeStats[i] = new PullStats(0, 0, 0, 0, 0);
+            timeStats[i] = new PullStats(0, 0, 0, 0, 0, 0);
         }
 
         foreach (var i in pulls)
         {
+            if (excludedDates.Contains(i.Time.Date))
+            {
+                continue;
+            }
+
             var time = i.Time.TimeOfDay;
             var index = (time.Hours * 60 + time.Minutes) / SLICE_MINUTES;
             AddToAvg(ref timeStats[index], i);
         }
 
         CreateTimePlot(timeStats);
+        #endregion
 
+        #region Date Analysis
         var minDate = new DateTime(pulls.Min((x) => x.Time.Ticks)).Date;
         var maxDate = new DateTime(pulls.Max((x) => x.Time.Ticks)).Date;
 
@@ -204,5 +296,17 @@ internal class Program
         }
 
         CreateDatePlot(dateStats, dates);
+        #endregion
+
+        var userStats = new PullStats[users.Count];
+        for (int i = 0; i < users.Count; i++)
+        {
+            for (int j = users[i].StartIndex; j < users[i].EndIndex; j++)
+            {
+                AddToAvg(ref userStats[i], pulls[j]);
+            }
+        }
+
+        CreateUserPlot(userStats);
     }
 }
