@@ -157,7 +157,7 @@ internal class Program
         }
     }
 
-    static void CreateUserPlot(PullStats[] userStats)
+    static void CreateUserPullPlot(PullStats[] userStats)
     {
         var userDistPlot = new Plot(1000, 600);
         var dataRange = Enumerable.Range(0, userStats.Length);
@@ -178,6 +178,27 @@ internal class Program
         userDistPlot.SetAxisLimits(xMin: 0, xMax: 1000, xAxisIndex: 0);
 
         userDistPlot.SaveFig("D:\\UserPlot.png");
+    }
+
+    static void CreateUserChancePlot(int[] userStats)
+    {
+        var chanceDistPlot = new Plot(1000, 600);
+        var dataRange = Enumerable.Range(0, userStats.Length);
+
+        var chanceData = chanceDistPlot.AddBar(
+            dataRange.Select((x) => (double)userStats[x]).ToArray(),
+            dataRange.Select((x) => 10.0 * x).ToArray()
+            );
+        chanceData.XAxisIndex = 0;
+        chanceData.YAxisIndex = 0;
+        chanceData.BarWidth = 0.8 * 10;
+
+        chanceDistPlot.Title("Genshin Pulls Analysis");
+        chanceDistPlot.XAxis.Label("Winning Chance");
+        chanceDistPlot.YAxis.Label("User Count");
+        chanceDistPlot.YAxis.Color(chanceData.Color);
+
+        chanceDistPlot.SaveFig("D:\\ChancePlot.png");
     }
 
     static void AddToAvg(ref PullStats stats, Pull pull)
@@ -307,6 +328,19 @@ internal class Program
             }
         }
 
-        CreateUserPlot(userStats);
+        CreateUserPullPlot(userStats);
+
+        var chanceStats = new int[11];
+        Array.Fill(chanceStats, 0);
+        foreach (var i in userStats)
+        {
+            var index = (int)Math.Round(i.WinChance * 10);
+            if (i.Count >= 4)
+            {
+                chanceStats[index]++;
+            }
+        }
+
+        CreateUserChancePlot(chanceStats);
     }
 }
